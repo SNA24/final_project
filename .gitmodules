@@ -1,0 +1,6 @@
+[submodule "social_network_algorithms"]
+    path = social_network_algorithms
+    url = https://github.com/SNA24/social_network_algorithms.git
+[submodule "algorithms"]
+	path = algorithms
+	url = https://github.com/SNA24/social_network_algorithms.git
