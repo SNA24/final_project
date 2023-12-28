@@ -20,6 +20,9 @@ class SocNetMec:
                 "truthful_reporting": True,
             }
         ]
+        self.__invited = dict()
+        
+        # self.__invided = {indited_node: {inviting_root}, ...}
 
     #MOCK-UP IMPLEMENTATION: It assigns the item to the first k bidders and assigns payment 0 to every node
     def __mock_auction(k, seller_net, reports, bids):
@@ -35,7 +38,7 @@ class SocNetMec:
             
     def __choose_S(self):
         # returns a subsets S of G's nodes according to some criteria
-        pass
+        return self.G.nodes()
     
     def __choose_auction(self):
         return self.__auctions[0]
@@ -43,9 +46,8 @@ class SocNetMec:
     def __init(self, t):
         return self.__choose_S(), self.__choose_auction()
 
-    #MOCK-UP IMPLEMENTATION: It returns bid 1 and no report
     def __invite(self, t, u, v, auction, prob, val):
-        if prob(u,v):
+        if prob(u, v, t):
             bid_v = val(t, v)
             S_v = self.G[v]
             if not auction["truthful_bidding"]:
@@ -62,6 +64,7 @@ class SocNetMec:
         reports = dict()
         
         for v in S:
+            
             bid_v, S_v = self.__invite(t, u, v, auction, prob, val)
             if bid_v:
                 bids[v] = bid_v
