@@ -1,6 +1,6 @@
 import networkx as nx
 import random
-from lesson5 import randomG
+from networks_gen import randomG
 from final_mockup import SocNetMec
 
 prob = dict()
@@ -30,8 +30,8 @@ def input_data():
             
     return G, k, T, val, p
 
-def prob(u, v, t):
-    if prob[(u, v, t)]:
+def probf(u, v, t):
+    if (u, v, t) in prob.keys():
         return prob[(u, v, t)]
     r = random.random()
     if r <= p[u][v]:
@@ -47,6 +47,6 @@ G, k, T, val, p = input_data()
 snm=SocNetMec(G, k, T)
 revenue = 0
 for step in range(T):
-    revenue += snm.run(step, prob, valf)
+    revenue += snm.run(step, probf, valf)
         
 print(revenue)
