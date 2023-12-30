@@ -1,13 +1,15 @@
 import networkx as nx
 import random
-from networks_gen import randomG
+from networks_gen import affiliationG 
 from final_mockup import SocNetMec
+from tqdm import tqdm
 
 prob = dict()
 
 def input_data():
-    n = 100
-    G = randomG(n, 0.3) #This will be updated to the network model of net_x
+    n = 1000
+    G = affiliationG(n, 5, 0.5, 1, 0.1, 3)
+    print("Graph generated")
     k = 5 #To be updated
     T = 5000 #To be updated
 
@@ -44,9 +46,9 @@ def valf(t, u):
     return val[t][u]
 
 G, k, T, val, p = input_data()
-snm=SocNetMec(G, k, T)
+snm=SocNetMec(G, T, k)
 revenue = 0
-for step in range(T):
+for step in tqdm(range(T)):
     revenue += snm.run(step, probf, valf)
-        
+
 print(revenue)
