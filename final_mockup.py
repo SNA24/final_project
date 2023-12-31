@@ -39,8 +39,7 @@ class SocNetMec:
             
         ]
         
-        self.__cache = dict() # {S1: {spam}, ...}
-        self.__spam = set() # {node, ...}
+        self.__invited = dict() # {node: seed1, ...}
 
     #MOCK-UP IMPLEMENTATION: It assigns the item to the first k bidders and assigns payment 0 to every node
     def __mock_auction(k, seller_net, reports, bids):
@@ -53,45 +52,18 @@ class SocNetMec:
             else:
                 allocation[i] = False
             payment[i] = 0
-            
-    def __find_reachable_nodes(self, S):
-        
-        if frozenset(S) in self.__cache:
-            self.__spam = self.__cache[frozenset(S)]
-            return
-        
-        self.__spam = set()
-        visited = dict()
-        for s in S:
-            visited[s] = set()
-            # make a bfs from s
-            queue = [s]
-            while queue:
-                node = queue.pop(0)
-                if node not in visited[s]:
-                    visited[s].add(node)
-                    queue.extend(self.G[node])
-                other = [i for i in S if i != s]
-                for o in other:
-                    if o in visited.keys() and node in visited[o]:
-                        self.__spam.add(node)
-                        break
-                    
-        if frozenset(S) not in self.__cache:
-            self.__cache[frozenset(S)] = self.__spam
 
     def __choose_S(self):
         # returns a subsets S of G's nodes according to some criteria
         S = set()
+        
         while len(S) < 5:
             S.add(random.choice(list(self.G.nodes())))
-        
-        self.__find_reachable_nodes(S)
         
         return S
     
     def __choose_auction(self):
-        return self.__auctions[1]
+        return self.__auctions[2]
 
     def __init(self, t):
         return self.__choose_S(), self.__choose_auction()
@@ -99,7 +71,7 @@ class SocNetMec:
     def __invite(self, t, u, v, auction, prob, val):
         if prob(u, v, t):
             bid_v = val(t, v)
-            S_v = set(self.G[v]).difference(self.__spam).difference(self.__S)
+            S_v = set(self.G[v]).difference(self.__S)
             if not auction["truthful_bidding"]:
                 bid_v = random.randint(0.5*bid_v, bid_v)
             if not auction["truthful_reporting"]:
@@ -108,34 +80,36 @@ class SocNetMec:
         else:
             return False
         
-    def __build_reports_and_bids(self, bids, reports, S, t, u, auction, prob, val, visited=None):
+    def __build_reports_and_bids(self, u, bids, reports, t, auction, prob, val, visited=None, root=None):
+        
+        if root is not None:
+            if u in self.__S:
+                return reports, bids
         
         if visited is None:
             visited = set()
-
-        if len(S) == 0 or u in visited:
-            return reports, bids
-        
+            root = u
+            
         visited.add(u)
         
-        for v in S.copy():
-            
-            if v in visited or v in self.__S:
+        for v in self.G[u]:
+                
+            if v in visited:
                 continue
             
-            res = self.__invite(t, u, v, auction, prob, val)
-            
-            if type(res) == bool:
-                reports[u].remove(v)
-                continue
-            
-            bid_v, S_v = res
-            
-            bids[v] = bid_v
-            reports[v] = S_v
-            
-            reports, bids = self.__build_reports_and_bids(bids, reports, S_v, t, v, auction, prob, val, visited)
-            
+            if v not in self.__invited.keys() and v not in self.__S:
+                res = self.__invite(t, u, v, auction, prob, val)
+                if type(res) == tuple:
+                    self.__invited[v] = root
+                    bids[v] = res[0]
+                    reports[v] = res[1]
+                    reports, bids = self.__build_reports_and_bids(v, bids, reports, t, auction, prob, val, visited, root)
+                elif u in reports.keys() and u != root and v in reports[u]:
+                    reports[u].remove(v)
+            else:
+                if u in reports.keys() and u != root and v in reports[u]:
+                    reports[u].remove(v)
+                
         return reports, bids
         
     def run(self, t, prob, val):
@@ -147,30 +121,17 @@ class SocNetMec:
         
         revenue = 0
         
-        for s in self.__S:
-
-            seller_net = self.G[s]
-            new_seller_net = set(seller_net)
+        for seed in self.__S:
             
-            for neighbor in seller_net:
-                
-                if neighbor in self.__spam or neighbor in self.__S:
-                    new_seller_net.remove(neighbor)
-                    continue
-                
-                res = self.__invite(t, s, neighbor, auction, prob, val)
-                
-                if type(res) == bool:
-                    new_seller_net.remove(neighbor)
-                else:
-                    bid_v, S_v = res
-                    bids[neighbor] = bid_v
-                    reports[neighbor] = S_v
+            r, b = self.__build_reports_and_bids(seed, bids, reports, t, auction, prob, val)
             
-            report, bid = self.__build_reports_and_bids(bids, reports, new_seller_net, t, s, auction, prob, val)
+            reports.update(r)
+            bids.update(b)
             
-            bids.update(bid)
-            reports.update(report)
+            new_seller_net = set()
+            for node in self.G[seed]:
+                if node in bids.keys():
+                    new_seller_net.add(node)
             
             allocation, payment = auction["auction"](self.k, new_seller_net, reports, bids)
             
