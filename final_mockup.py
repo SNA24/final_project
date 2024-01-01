@@ -5,6 +5,8 @@ sys.path.insert(0, parent_dir)
 from social_network_algorithms.mechanisms.MUDAN import mudan
 from social_network_algorithms.mechanisms.SNCA import snca
 from social_network_algorithms.mechanisms.VCG import vcg
+import networkx as nx
+from multi_armed_bandit import UCB_Learner
 
 import random
 from joblib import Parallel, delayed
@@ -41,35 +43,25 @@ class SocNetMec:
             
         ]
         
+        self.__learner = UCB_Learner(4, self.__select_best_nodes(), [auction["name"] for auction in self.__auctions], T)
+        
+        # the optimal arm is the subset of nodes with the largest valuations and the auction with the highest revenue
+        # it is used to compute the regret
+        
         self.__invited_by_seed = dict() # {node: seed1, ...}
         self.__invited_by_nodes = dict() # {node0: {node1, node2, ...}, ...}
-
-    #MOCK-UP IMPLEMENTATION: It assigns the item to the first k bidders and assigns payment 0 to every node
-    def __mock_auction(k, seller_net, reports, bids):
-        allocation = dict()
-        payment = dict()
-        count = 0
-        for i in bids.keys():
-            if count < k:
-                allocation[i] = True
-            else:
-                allocation[i] = False
-            payment[i] = 0
-
-    def __choose_S(self):
-        # returns a subsets S of G's nodes according to some criteria
-        S = set()
         
-        while len(S) < 5:
-            S.add(random.choice(list(self.G.nodes())))
-        
-        return S
-    
-    def __choose_auction(self):
-        return self.__auctions[0]
+    def __select_best_nodes(self, n = 4):
+        # apply page rank to the graph and select the 4 nodes with the highest score
+        page_rank = nx.pagerank(self.G)
+        # return just the nodes and not the score
+        return [node for node, score in sorted(page_rank.items(), key = lambda item: item[1], reverse = True)][:n]
 
     def __init(self, t):
-        return self.__choose_S(), self.__choose_auction()
+        arms, auction = self.__learner.play_arm()
+        arms = set(arms)
+        auction = self.__auctions[[auction["name"] for auction in self.__auctions].index(auction)]
+        return arms, auction
 
     def __invite(self, t, u, v, auction, prob, val):
         if prob(u, v, t):
@@ -140,6 +132,8 @@ class SocNetMec:
         self.__invited_by_nodes.clear()
         
         self.__S, auction = self.__init(t)
+        # self.__S = set(self.__select_best_nodes())
+        # auction = self.__auctions[2]
 
         bids = dict()
         reports = dict()
@@ -166,6 +160,8 @@ class SocNetMec:
                     
             bids.clear()
             reports.clear()
+            
+        self.__learner.receive_reward(revenue)
             
         return revenue
         
