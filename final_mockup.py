@@ -7,6 +7,8 @@ from social_network_algorithms.mechanisms.SNCA import snca
 from social_network_algorithms.mechanisms.VCG import vcg
 
 import random
+from joblib import Parallel, delayed
+from collections import deque
 
 class SocNetMec:
     
@@ -39,7 +41,8 @@ class SocNetMec:
             
         ]
         
-        self.__invited = dict() # {node: seed1, ...}
+        self.__invited_by_seed = dict() # {node: seed1, ...}
+        self.__invited_by_nodes = dict() # {node0: {node1, node2, ...}, ...}
 
     #MOCK-UP IMPLEMENTATION: It assigns the item to the first k bidders and assigns payment 0 to every node
     def __mock_auction(k, seller_net, reports, bids):
@@ -63,7 +66,7 @@ class SocNetMec:
         return S
     
     def __choose_auction(self):
-        return self.__auctions[2]
+        return self.__auctions[0]
 
     def __init(self, t):
         return self.__choose_S(), self.__choose_auction()
@@ -80,39 +83,61 @@ class SocNetMec:
         else:
             return False
         
-    def __build_reports_and_bids(self, u, bids, reports, t, auction, prob, val, visited=None, root=None):
+    def __build_reports_and_bids(self, seed, bids, reports, t, auction, prob, val):
         
-        if root is not None:
-            if u in self.__S:
-                return reports, bids
-        
-        if visited is None:
-            visited = set()
-            root = u
+        visited = set()
+        queue = deque([seed])
+
+        while queue:
             
-        visited.add(u)
-        
-        for v in self.G[u]:
+            u = queue.popleft()
+            visited.add(u)
+
+            # visit all neighbors of u
+            for v in self.G.neighbors(u):
                 
-            if v in visited:
-                continue
-            
-            if v not in self.__invited.keys() and v not in self.__S:
-                res = self.__invite(t, u, v, auction, prob, val)
-                if type(res) == tuple:
-                    self.__invited[v] = root
-                    bids[v] = res[0]
-                    reports[v] = res[1]
-                    reports, bids = self.__build_reports_and_bids(v, bids, reports, t, auction, prob, val, visited, root)
-                elif u in reports.keys() and u != root and v in reports[u]:
-                    reports[u].remove(v)
-            else:
-                if u in reports.keys() and u != root and v in reports[u]:
-                    reports[u].remove(v)
+                # if v is a seed, then skip it
+                if v in self.__S:
+                    continue
                 
+                # case 1: v has not been visited yet and has not been invited yet
+                if v not in visited and v not in self.__invited_by_seed.keys():
+                    # check if v accepts to take part to the auction
+                    res = self.__invite(t, u, v, auction, prob, val)
+                    
+                    if res is not False:
+                        # case 1.1: v accepts to take part to the auction
+                        bids[v] = res[0]
+                        reports[v] = res[1]
+                        self.__invited_by_seed[v] = seed
+                        if v not in self.__invited_by_nodes.keys():
+                            self.__invited_by_nodes[v] = {u}
+                        else:
+                            self.__invited_by_nodes[v].add(u)
+                        queue.append(v)
+                    else:
+                        # case 1.2: v does not accept to take part to the auction and refuses the invitation
+                        if u in reports.keys() and v in reports[u]: 
+                            reports[u].remove(v)    
+                
+                # case 2: v has not been visited yet and has been invited by another root
+                elif v in self.__invited_by_seed.keys() and self.__invited_by_seed[v] != seed:
+                    # case 2.1: spam
+                    if u in reports.keys() and v in reports[u]: 
+                        reports[u].remove(v)
+                        # remove v from the auction
+                        for elem in self.__invited_by_nodes[v]:
+                            if elem in reports.keys() and v in reports[elem]:
+                                reports[elem].remove(v)
+                            if elem in bids.keys() and v in bids.keys():
+                                del bids[v]
+
         return reports, bids
         
     def run(self, t, prob, val):
+        
+        self.__invited_by_seed.clear()
+        self.__invited_by_nodes.clear()
         
         self.__S, auction = self.__init(t)
 

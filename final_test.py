@@ -7,7 +7,7 @@ from tqdm import tqdm
 prob = dict()
 
 def input_data():
-    n = 1000
+    n = 100
     G = affiliationG(n, 5, 0.5, 1, 0.1, 3)
     print("Graph generated")
     k = 5 #To be updated
