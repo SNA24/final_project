@@ -43,7 +43,8 @@ class SocNetMec:
             
         ]
         
-        self.__learner = UCB_Learner(4, self.__select_best_nodes(), [auction["name"] for auction in self.__auctions], T)
+        self.__best_nodes = self.__select_best_nodes(6)
+        self.__learner = UCB_Learner(4, self.__best_nodes, [auction["name"] for auction in self.__auctions], self.T)
         
         # the optimal arm is the subset of nodes with the largest valuations and the auction with the highest revenue
         # it is used to compute the regret
@@ -132,8 +133,6 @@ class SocNetMec:
         self.__invited_by_nodes.clear()
         
         self.__S, auction = self.__init(t)
-        # self.__S = set(self.__select_best_nodes())
-        # auction = self.__auctions[2]
 
         bids = dict()
         reports = dict()
