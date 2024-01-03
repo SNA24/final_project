@@ -1,7 +1,29 @@
 import networkx as nx
 from networks_gen import affiliationG
 
-def operlapping_louvain(G, n_iter = 20, lambda_ = 0.6):
+def calculate_modularity(graph, communities):
+    
+    num_edges = graph.number_of_edges()
+    adjacency_matrix = nx.to_numpy_array(graph)
+    modularity = 0.0
+
+    for community_i in communities.values():
+        for node_i in community_i:
+            node_i -= 1
+            for community_j in communities.values():
+                for node_j in community_j:
+                    node_j -= 1
+                    modularity += (adjacency_matrix[node_i, node_j] - 
+                                   (graph.degree[node_i] * graph.degree[node_j]) / (2 * num_edges)) * (
+                                      int(community_i == community_j) - 
+                                      (graph.degree[node_i] * graph.degree[node_j]) / (2 * num_edges)
+                                   )
+
+    modularity /= (2 * num_edges)
+    
+    return modularity
+
+def operlapping_louvain(G, n_iter = 20, lambda_ = 0.6, threshold = 0.99):
     
     # STEP 1. execute the louvain algorithm n_iter times and record the results
     results = []
@@ -57,18 +79,26 @@ def operlapping_louvain(G, n_iter = 20, lambda_ = 0.6):
         for k1, v1 in communities.copy().items():
             if v.issubset(v1) and k != k1:
                 communities.pop(k1)
+                print("Removed community", k1)
             # elif check if they have a lot of nodes in common and if yes merge them
-            elif len(v.intersection(v1)) > int(max(len(v),len(v1)) * 0.85) and k != k1:
-                communities[k] = v.union(v1)
-                communities.pop(k1)
+            else:
+                print("Checking if community", k, "and", k1, "have a lot of nodes in common")
+                # compute jaccard similarity
+                intersection = len(v.intersection(v1))
+                union = len(v.union(v1))
+                jaccard_similarity = intersection / union
+                if jaccard_similarity > threshold and k != k1:
+                    communities[k] = v.union(v1)
+                    communities.pop(k1)
 
     return communities
 
 if __name__ == "__main__" :
     
-    G = affiliationG(100, 8, 0.1, 4, 0.1, 1)
-    clustering_coefficient = nx.average_clustering(G)
-    print("Clustering coefficient:", clustering_coefficient)
+    G = affiliationG(5000, 6, 0.1, 4, 0.1, 1)
+    print("Number of nodes:", G.number_of_nodes())
+    #clustering_coefficient = nx.average_clustering(G)
+    # print("Clustering coefficient:", clustering_coefficient)
     communities = operlapping_louvain(G)
     print("Number of communities:", len(communities))
     
