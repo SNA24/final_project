@@ -36,3 +36,4 @@ if __name__ == '__main__':
     communities, affiliations = overlapping_clustering(G)
     for comm in communities:
         print(communities[comm])
+        

@@ -1,6 +1,5 @@
 import networkx as nx
 from networks_gen import affiliationG
-import math
 
 def operlapping_louvain(G, n_iter = 20, lambda_ = 0.6):
     
@@ -50,15 +49,34 @@ def operlapping_louvain(G, n_iter = 20, lambda_ = 0.6):
     for community in list(communities.keys()):
         if len(communities[community]) == 0:
             communities.pop(community)
-    
-        
+            
+    print("Number of communities:", len(communities))
+            
+    # STEP 3. merge the communities which have the same nodes or are subsets of other communities
+    for k, v in communities.copy().items():
+        for k1, v1 in communities.copy().items():
+            if v.issubset(v1) and k != k1:
+                communities.pop(k1)
+            # elif check if they have a lot of nodes in common and if yes merge them
+            elif len(v.intersection(v1)) > int(max(len(v),len(v1)) * 0.85) and k != k1:
+                communities[k] = v.union(v1)
+                communities.pop(k1)
+
     return communities
 
-if __name__ == "__main__":
+if __name__ == "__main__" :
     
-    G = affiliationG(100, 4, 0.02, 1, 0.1, 1)
-    # G = nx.read_edgelist("net_2", nodetype=int)
+    G = affiliationG(100, 8, 0.1, 4, 0.1, 1)
+    clustering_coefficient = nx.average_clustering(G)
+    print("Clustering coefficient:", clustering_coefficient)
     communities = operlapping_louvain(G)
+    print("Number of communities:", len(communities))
+    
     for community in communities:
-        print(community)
+        print(communities[community])
+        
+
+    
+
+
         
