@@ -11,7 +11,6 @@ import networkx as nx
 
 import random
 from joblib import Parallel, delayed
-from collections import deque
 
 class SocNetMec:
     
@@ -73,11 +72,11 @@ class SocNetMec:
     def __build_reports_and_bids(self, seed, bids, reports, t, auction, prob, val):
         
         visited = set()
-        queue = deque([seed])
+        queue = [seed]
 
         while queue:
             
-            u = queue.popleft()
+            u = queue.pop(0)
             visited.add(u)
 
             # visit all neighbors of u
