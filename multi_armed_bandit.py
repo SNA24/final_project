@@ -19,9 +19,10 @@ class UCB_Learner:
         
         self.ranking = parallel_page_rank(G, 10)
         print("PageRank done")
+        self.ranking = parallel_page_rank(G, 10)
+        print("PageRank done")
         self.communities = louvain_communities(G)
         print("Communities done")
-        n = len(self.communities)
         
         self.communities_ranking = dict()
         for index, community in enumerate(self.communities):
