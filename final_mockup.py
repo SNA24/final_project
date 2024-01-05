@@ -85,7 +85,7 @@ class SocNetMec:
             for v in self.G.neighbors(u):
                 
                 # if v is a seed, then skip it
-                if v in self.__S:
+                if v in self.__S or v == u:
                     continue
                 
                 # case 1: v has not been visited yet and has not been invited yet
@@ -95,8 +95,13 @@ class SocNetMec:
                     
                     if res is not False:
                         # case 1.1: v accepts to take part to the auction
-                        bids[v] = res[0]
-                        reports[v] = res[1]
+                        bids[seed][v] = res[0]
+                        reports[seed][v] = res[1].copy()
+                        
+                        for n in res[1]:
+                            if n in self.__invited_by_nodes.keys() or n == v:
+                                reports[seed][v].remove(n)
+                        
                         self.__invited_by_seed[v] = seed
                         if v not in self.__invited_by_nodes.keys():
                             self.__invited_by_nodes[v] = {u}
@@ -105,21 +110,36 @@ class SocNetMec:
                         queue.append(v)
                     else:
                         # case 1.2: v does not accept to take part to the auction and refuses the invitation
-                        if u in reports.keys() and v in reports[u]: 
-                            reports[u].remove(v)    
+                        if u in reports[seed].keys() and v in reports[seed][u]: 
+                            reports[seed][u].remove(v)    
                 
                 # case 2: v has not been visited yet and has been invited by another root
                 elif v in self.__invited_by_seed.keys() and self.__invited_by_seed[v] != seed:
-                    # case 2.1: spam
-                    if u in reports.keys() and v in reports[u]: 
-                        reports[u].remove(v)
-                        # remove v from the auction
-                        for elem in self.__invited_by_nodes[v]:
-                            if elem in reports.keys() and v in reports[elem]:
-                                reports[elem].remove(v)
-                            if elem in bids.keys() and v in bids.keys():
-                                del bids[v]
 
+                    other_seed = self.__invited_by_seed[v]
+                    
+                    # if v is in the keys of reports[other_seed] or bids[other_seed], then remove it
+                    if v in reports[other_seed].keys():
+                        
+                        to_remove = [v]
+                        while len(to_remove) > 0:
+                            curr = to_remove.pop()
+                            if curr in reports[other_seed].keys():
+                                rep_to_remove = reports[other_seed][curr]
+                                for elem in rep_to_remove:
+                                    if elem in reports[other_seed].keys() and elem not in to_remove:
+                                        to_remove.append(elem)
+                                del reports[other_seed][curr]
+                                del bids[other_seed][curr]
+                                # if curr is in one of the values of reports[other_seed], then remove it
+                                v = set()
+                                for value in reports[other_seed].values():
+                                    v.update(value)
+                                if curr in v:
+                                    for key in reports[other_seed].keys():
+                                        if curr in reports[other_seed][key]:
+                                            reports[other_seed][key].remove(curr)
+                            
         return reports, bids
         
     def run(self, t, prob, val):
@@ -129,8 +149,8 @@ class SocNetMec:
         
         self.__S, auction = self.__init(t)
 
-        bids = dict()
-        reports = dict()
+        bids = {seed: {} for seed in self.__S}
+        reports = {seed: {} for seed in self.__S}
         
         revenue = 0
         
@@ -141,21 +161,25 @@ class SocNetMec:
             reports.update(r)
             bids.update(b)
             
+        for seed in self.__S:
+            
             new_seller_net = set()
             for node in self.G[seed]:
-                if node in bids.keys():
+                if node in bids[seed].keys():
                     new_seller_net.add(node)
             
-            allocation, payment = auction["auction"](self.k, new_seller_net, reports, bids)
+            allocation, payment = auction["auction"](self.k, new_seller_net, reports[seed], bids[seed])
             
             for all, pay in zip(allocation.values(), payment.values()):
                 if all:
                     revenue += pay
                     
-            bids.clear()
-            reports.clear()
+        bids.clear()
+        reports.clear()
             
         self.__learner.receive_reward(revenue)
+        
+        print("t: ", t, " revenue: ", revenue)
             
         return revenue
         

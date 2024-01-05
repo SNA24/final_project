@@ -7,9 +7,9 @@ from tqdm import tqdm
 prob = dict()
 
 def input_data():
-    n = 100
-    #G = affiliationG(n, 5, 0.5, 1, 0.1, 3)
-    G = nx.read_edgelist("test")
+    n = 1000
+    G = affiliationG(n, 5, 0.5, 1, 0.1, 3)
+    # G = nx.read_edgelist("test")
     # save the graph
     # nx.write_edgelist(G, "test")
     print("Graph generated")
