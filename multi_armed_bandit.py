@@ -35,24 +35,29 @@ class UCB_Learner:
 
         self.__last_played_arm = None
         
-        self.__num_auctions = {a: 0 for a in self.auctions_arms}
-        self.__num_num_nodes = {a: 0 for a in range(int(min(T,len(nodes))/5))}
+        # self.__num_auctions = {a: 0 for a in self.auctions_arms}
+        # self.__num_num_nodes = {a: 0 for a in range(1, n+1)}
+        self.__num = {a: 0 for a in itertools.product(self.auctions_arms, range(1, n+1))}
 
-        self.__rew_auctions = {a: 0 for a in self.auctions_arms}
-        self.__rew_num_nodes = {a: 0 for a in range(int(min(T,len(nodes))/5))}
+        # self.__rew_auctions = {a: 0 for a in self.auctions_arms}
+        # self.__rew_num_nodes = {a: 0 for a in range(1, n+1)}
+        self.__rew = {a: 0 for a in itertools.product(self.auctions_arms, range(1, n+1))}
         
-        self.__ucb_auctions = {a: float("inf") for a in self.auctions_arms}
-        self.__ucb_num_nodes = {a: float("inf") for a in range(int(min(T,len(nodes))/5))}
+        # self.__ucb_auctions = {a: float("inf") for a in self.auctions_arms}
+        # self.__ucb_num_nodes = {a: float("inf") for a in range(1, n+1)}
+        self.__ucb = {a: float("inf") for a in itertools.product(self.auctions_arms, range(1, n+1))}
         
-    def __choose_arm(self, __ucb_auctions, __ucb_num_nodes):
-        return max(__ucb_auctions, key = __ucb_auctions.get), max(__ucb_num_nodes, key = __ucb_num_nodes.get)
+    def __choose_arm(self, __ucb):
+        # return max(__ucb_auctions, key = __ucb_auctions.get), max(__ucb_num_nodes, key = __ucb_num_nodes.get)
+        return max(__ucb, key = __ucb.get)
     
     def play_arm(self):
-        a_t = self.__choose_arm(self.__ucb_auctions, self.__ucb_num_nodes)
+        a_t = self.__choose_arm(self.__ucb)
         self.__last_played_arm = a_t
         chosen_auction_arm, chosen_num_nodes = a_t
-        self.__num_auctions[chosen_auction_arm] += 1
-        self.__num_num_nodes[chosen_num_nodes] += 1
+        # self.__num_auctions[chosen_auction_arm] += 1
+        # self.__num_num_nodes[chosen_num_nodes] += 1
+        self.__num[a_t] += 1
         # make a set with the top chosen_num_nodes nodes with the highest page rank in each community
         seeds = set()
         for index, community in enumerate(self.communities):
@@ -64,15 +69,19 @@ class UCB_Learner:
         
         a_t = self.__last_played_arm
 
-        self.__rew_auctions[a_t[0]] += reward
-        self.__rew_num_nodes[a_t[1]] += reward
+        # self.__rew_auctions[a_t[0]] += reward
+        # self.__rew_num_nodes[a_t[1]] += reward
+        
+        self.__rew[a_t] += reward
         
         if self.__T is not None:
-            self.__ucb_auctions[a_t[0]] = self.__rew_auctions[a_t[0]]/self.__num_auctions[a_t[0]] + math.sqrt(2*math.log(self.__T)/self.__num_auctions[a_t[0]])
-            self.__ucb_num_nodes[a_t[1]] = self.__rew_num_nodes[a_t[1]]/self.__num_num_nodes[a_t[1]] + math.sqrt(2*math.log(self.__T)/self.__num_num_nodes[a_t[1]])
+            # self.__ucb_auctions[a_t[0]] = self.__rew_auctions[a_t[0]]/self.__num_auctions[a_t[0]] + math.sqrt(2*math.log(self.__T)/self.__num_auctions[a_t[0]])
+            # self.__ucb_num_nodes[a_t[1]] = self.__rew_num_nodes[a_t[1]]/self.__num_num_nodes[a_t[1]] + math.sqrt(2*math.log(self.__T)/self.__num_num_nodes[a_t[1]])
+            self.__ucb[a_t] = self.__rew[a_t]/self.__num[a_t] + math.sqrt(2*math.log(self.__T)/self.__num[a_t])
         else:
-            self.__ucb_auctions[a_t[0]] = self.__rew_auctions[a_t[0]] / self.__num_auctions[a_t[0]] + math.sqrt(2 * math.log(self.__t) / self.__num_auctions[a_t[0]])
-            self.__ucb_num_nodes[a_t[1]] = self.__rew_num_nodes[a_t[1]] / self.__num_num_nodes[a_t[1]] + math.sqrt(2 * math.log(self.__t) / self.__num_num_nodes[a_t[1]])
+            # self.__ucb_auctions[a_t[0]] = self.__rew_auctions[a_t[0]] / self.__num_auctions[a_t[0]] + math.sqrt(2 * math.log(self.__t) / self.__num_auctions[a_t[0]])
+            # self.__ucb_num_nodes[a_t[1]] = self.__rew_num_nodes[a_t[1]] / self.__num_num_nodes[a_t[1]] + math.sqrt(2 * math.log(self.__t) / self.__num_num_nodes[a_t[1]])
+            self.__ucb[a_t] = self.__rew[a_t] / self.__num[a_t] + math.sqrt(2 * math.log(self.__t) / self.__num[a_t])
             self.__t += 1
 
         return a_t, reward
