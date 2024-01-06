@@ -6,12 +6,16 @@ from social_network_algorithms.mechanisms.MUDAN import mudan
 from social_network_algorithms.mechanisms.SNCA import snca
 from social_network_algorithms.mechanisms.VCG import vcg
 
-from multi_armed_bandit import UCB_Learner
+from multi_armed_bandit import UCB_Learner, EpsGreedy_Learner
 import networkx as nx
 
-import random
+import random, math
 from joblib import Parallel, delayed
-from collections import deque
+
+def give_eps(G, t):
+    if t == 0:
+        return 1  #for the first step we cannot make exploitation, so eps_1 = 1
+    return (len(G.nodes())*math.log(t+1)/(t+1))**(1/3)
 
 class SocNetMec:
     
@@ -44,7 +48,8 @@ class SocNetMec:
             
         ]
         
-        self.__learner = UCB_Learner(self.G, [auction["name"] for auction in self.__auctions], self.T)
+        # self.__learner = UCB_Learner(self.G, [auction["name"] for auction in self.__auctions], self.T)
+        self.__learner = EpsGreedy_Learner(self.G, [auction["name"] for auction in self.__auctions], self.T)
         
         # the optimal arm is the subset of nodes with the largest valuations and the auction with the highest revenue
         # it is used to compute the regret
@@ -53,7 +58,10 @@ class SocNetMec:
         self.__invited_by_nodes = dict() # {node0: {node1, node2, ...}, ...}
 
     def __init(self, t):
-        arms, auction = self.__learner.play_arm()
+        if type(self.__learner) == UCB_Learner: 
+            arms, auction = self.__learner.play_arm()
+        else:
+            arms, auction = self.__learner.play_arm(give_eps(self.G, t))
         arms = set(arms)
         auction = self.__auctions[[auction["name"] for auction in self.__auctions].index(auction)]
         return arms, auction
@@ -73,11 +81,11 @@ class SocNetMec:
     def __build_reports_and_bids(self, seed, bids, reports, t, auction, prob, val):
         
         visited = set()
-        queue = deque([seed])
+        queue = [seed]
 
         while queue:
             
-            u = queue.popleft()
+            u = queue.pop(0)
             visited.add(u)
 
             # visit all neighbors of u
@@ -177,6 +185,8 @@ class SocNetMec:
         reports.clear()
             
         self.__learner.receive_reward(revenue)
+        
+        print(f"Step: {t}, Revenue: {revenue}")
             
         return revenue
         
