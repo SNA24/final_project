@@ -12,7 +12,6 @@ import networkx as nx
 import random
 from joblib import Parallel, delayed
 from collections import deque
-import psutil
 
 class SocNetMec:
     
@@ -179,7 +178,7 @@ class SocNetMec:
             
         self.__learner.receive_reward(revenue)
         
-        print("t: ", t, " revenue: ", revenue)
+        print(f"Step: {t}, Revenue: {revenue}")
             
         return revenue
         

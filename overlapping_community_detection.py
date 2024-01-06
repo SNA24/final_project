@@ -23,7 +23,7 @@ def calculate_modularity(graph, communities):
     
     return modularity
 
-def operlapping_louvain(G, n_iter = 20, lambda_ = 0.6, threshold = 0.99):
+def operlapping_louvain(G, n_iter = 2, lambda_ = 0, threshold = 0.99):
     
     # STEP 1. execute the louvain algorithm n_iter times and record the results
     results = []
@@ -47,6 +47,12 @@ def operlapping_louvain(G, n_iter = 20, lambda_ = 0.6, threshold = 0.99):
                 for neighbor in G.neighbors(node):
                     if neighbor in community:
                         belonging_matrix[node][i] += 1
+                        
+    # save the belonging matrix in a file
+    belonging_matrix_file = open("belonging_matrix.txt", "a")
+    for row in belonging_matrix:
+        belonging_matrix_file.write(str(row) + "\n")
+    belonging_matrix_file.close()
                           
     # normalize the belonging matrix in range [0,1] to compute the belonging coefficient of each node to each community
     # take the maximum coefficient of the whole matrix
@@ -77,7 +83,7 @@ def operlapping_louvain(G, n_iter = 20, lambda_ = 0.6, threshold = 0.99):
     # STEP 3. merge the communities which have the same nodes or are subsets of other communities
     for k, v in communities.copy().items():
         for k1, v1 in communities.copy().items():
-            if v.issubset(v1) and k != k1:
+            if len(v.intersection(v1)) > 0 and k != k1:
                 communities.pop(k1)
                 print("Removed community", k1)
             # elif check if they have a lot of nodes in common and if yes merge them
@@ -95,16 +101,13 @@ def operlapping_louvain(G, n_iter = 20, lambda_ = 0.6, threshold = 0.99):
 
 if __name__ == "__main__" :
     
-    G = affiliationG(5000, 6, 0.1, 4, 0.1, 1)
-    print("Number of nodes:", G.number_of_nodes())
+    # G = affiliationG(5000, 1, 0.1, 1, 0.1, 1)
+    # print("Number of nodes:", G.number_of_nodes())
     #clustering_coefficient = nx.average_clustering(G)
     # print("Clustering coefficient:", clustering_coefficient)
+    G = nx.read_edgelist("net_2", nodetype = int)
     communities = operlapping_louvain(G)
     print("Number of communities:", len(communities))
-    
-    for community in communities:
-        print(communities[community])
-        
 
     
 
