@@ -12,14 +12,15 @@ from social_network_algorithms.centrality_measures.shapley_closeness import para
 from social_network_algorithms.centrality_measures.shapley_degree import parallel_shapley_degree
 from social_network_algorithms.centrality_measures.shapley_threshold import parallel_shapley_threshold
 from networkx.algorithms.community import louvain_communities
-import psutil
         
 class UCB_Learner:
 
     def __init__(self, G, auctions, T = None):
         
-        self.ranking = parallel_vote_rank(G, psutil.cpu_count(logical=False))
+        self.ranking = parallel_page_rank(G, 10)
+        print("PageRank done")
         self.communities = louvain_communities(G)
+        print("Communities done")
         
         self.communities_ranking = dict()
         for index, community in enumerate(self.communities):
@@ -54,9 +55,9 @@ class UCB_Learner:
         self.__num_num_nodes[chosen_num_nodes] += 1
         # make a set with the top chosen_num_nodes nodes with the highest page rank in each community
         seeds = set()
-        # for index, community in enumerate(self.communities):
-        #     seeds.update(self.communities_ranking[index][:chosen_num_nodes])
-        seeds.update(set(list(self.ranking.keys())[:chosen_num_nodes]))
+        for index, community in enumerate(self.communities):
+            seeds.update(self.communities_ranking[index][:chosen_num_nodes])
+        # seeds.update(set(list(self.ranking.keys())[:chosen_num_nodes]))
         return seeds, chosen_auction_arm
     
     def receive_reward(self, reward):

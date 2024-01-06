@@ -12,7 +12,6 @@ import networkx as nx
 import random
 from joblib import Parallel, delayed
 from collections import deque
-import psutil
 
 class SocNetMec:
     
