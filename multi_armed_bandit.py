@@ -21,6 +21,7 @@ class UCB_Learner:
         print("PageRank done")
         self.communities = louvain_communities(G)
         print("Communities done")
+        n = len(self.communities)
         
         self.communities_ranking = dict()
         for index, community in enumerate(self.communities):
@@ -84,6 +85,7 @@ class UCB_Learner:
             self.__ucb[a_t] = self.__rew[a_t] / self.__num[a_t] + math.sqrt(2 * math.log(self.__t) / self.__num[a_t])
             self.__t += 1
 
+        print("auction: ", a_t[0], "num_nodes: ", a_t[1], "reward: ", reward)
         return a_t, reward
     
     
