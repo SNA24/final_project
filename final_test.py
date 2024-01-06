@@ -8,10 +8,11 @@ prob = dict()
 
 def input_data():
     n = 1000
-    G = affiliationG(n, 5, 0.5, 1, 0.1, 3)
+    # G = affiliationG(n, 5, 0.5, 1, 0.1, 3)
+    G = nx.read_edgelist('net_2', nodetype=int)
     print("Graph generated")
-    k = random.randint(int(n * 0.1), int(n*0.5))
-    T = random.randint(20000, 100000)
+    k = 5
+    T = 5000
 
     #for the oracle val
     val = dict()

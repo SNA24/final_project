@@ -161,6 +161,8 @@ class SocNetMec:
             reports.clear()
             
         self.__learner.receive_reward(revenue)
+        
+        print(f"Step: {t}, Revenue: {revenue}")
             
         return revenue
         
