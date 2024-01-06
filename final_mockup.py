@@ -5,12 +5,14 @@ sys.path.insert(0, parent_dir)
 from social_network_algorithms.mechanisms.MUDAN import mudan
 from social_network_algorithms.mechanisms.SNCA import snca
 from social_network_algorithms.mechanisms.VCG import vcg
-import networkx as nx
+
 from multi_armed_bandit import UCB_Learner
+import networkx as nx
 
 import random
 from joblib import Parallel, delayed
 from collections import deque
+import psutil
 
 class SocNetMec:
     
@@ -43,20 +45,13 @@ class SocNetMec:
             
         ]
         
-        self.__best_nodes = self.__select_best_nodes(6)
-        self.__learner = UCB_Learner(4, self.__best_nodes, [auction["name"] for auction in self.__auctions], self.T)
+        self.__learner = UCB_Learner(self.G, [auction["name"] for auction in self.__auctions], self.T)
         
         # the optimal arm is the subset of nodes with the largest valuations and the auction with the highest revenue
         # it is used to compute the regret
         
         self.__invited_by_seed = dict() # {node: seed1, ...}
         self.__invited_by_nodes = dict() # {node0: {node1, node2, ...}, ...}
-        
-    def __select_best_nodes(self, n = 4):
-        # apply page rank to the graph and select the 4 nodes with the highest score
-        page_rank = nx.pagerank(self.G)
-        # return just the nodes and not the score
-        return [node for node, score in sorted(page_rank.items(), key = lambda item: item[1], reverse = True)][:n]
 
     def __init(self, t):
         arms, auction = self.__learner.play_arm()
