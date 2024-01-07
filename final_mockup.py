@@ -11,6 +11,7 @@ import networkx as nx
 
 import random, math
 from joblib import Parallel, delayed
+from collections import deque
 
 def give_eps(G, t):
     if t == 0:
@@ -48,14 +49,14 @@ class SocNetMec:
             
         ]
         
-        # self.__learner = UCB_Learner(self.G, [auction["name"] for auction in self.__auctions], self.T)
-        self.__learner = EpsGreedy_Learner(self.G, [auction["name"] for auction in self.__auctions], self.T)
+        self.__learner = UCB_Learner(self.G, [auction["name"] for auction in self.__auctions], self.T)
+        # self.__learner = EpsGreedy_Learner(self.G, [auction["name"] for auction in self.__auctions], self.T)
         
         # the optimal arm is the subset of nodes with the largest valuations and the auction with the highest revenue
         # it is used to compute the regret
         
-        self.__invited_by_seed = dict() # {node: seed1, ...}
-        self.__invited_by_nodes = dict() # {node0: {node1, node2, ...}, ...}
+        self.__spam = set()
+        self.__cache = dict()
 
     def __init(self, t):
         if type(self.__learner) == UCB_Learner: 
@@ -64,7 +65,49 @@ class SocNetMec:
             arms, auction = self.__learner.play_arm(give_eps(self.G, t))
         arms = set(arms)
         auction = self.__auctions[[auction["name"] for auction in self.__auctions].index(auction)]
+        # arms = random.sample(self.G.nodes(), 1)
+        # auction = self.__auctions[1]
+        self.__find_reachable_nodes(arms, len(arms))
         return arms, auction
+    
+    def __find_reachable_nodes(self, S, j):
+        
+        self.__spam.clear()
+        
+        if frozenset(S) in self.__cache:
+            self.__spam = self.__cache[frozenset(S)]
+            return
+        
+        def bfs (start_node):
+            visited, queue = set(), deque([start_node])
+            while queue:
+                node = queue.pop()
+                if node not in visited:
+                    visited.add(node)
+                    queue.extendleft(set(self.G[node]).difference(visited))
+            return set(visited)
+        
+        # with Parallel(n_jobs=j) as parallel:
+        #     spam = parallel(delayed(bfs)(s) for s in S)
+           
+        # res = set()
+        # for s in spam:
+        #     if len(res) > 0:
+        #         res.update(s)
+        #     else:
+        #         res = res.intersection(s)
+        
+        for s in S:
+            spam = bfs(s)
+            if len(self.__spam) == 0 and len(S) > 1:
+                self.__spam.update(spam)
+            else:
+                self.__spam = spam.intersection(self.__spam)
+                
+        # self.__spam = res
+                    
+        if frozenset(S) not in self.__cache:
+            self.__cache[frozenset(S)] = self.__spam
 
     def __invite(self, t, u, v, auction, prob, val):
         if prob(u, v, t):
@@ -78,81 +121,30 @@ class SocNetMec:
         else:
             return False
         
-    def __build_reports_and_bids(self, seed, bids, reports, t, auction, prob, val):
+    def build_reports_and_bids(self, seed, bids, reports, t, auction, prob, val):
         
         visited = set()
-        queue = [seed]
-
+        queue = deque([seed])
+        
         while queue:
+            p = queue.popleft()
+            visited.add(p)
             
-            u = queue.pop(0)
-            visited.add(u)
-
-            # visit all neighbors of u
-            for v in self.G.neighbors(u):
-                
-                # if v is a seed, then skip it
-                if v in self.__S or v == u:
-                    continue
-                
-                # case 1: v has not been visited yet and has not been invited yet
-                if v not in visited and v not in self.__invited_by_seed.keys():
-                    # check if v accepts to take part to the auction
-                    res = self.__invite(t, u, v, auction, prob, val)
+            for node in self.G[p]:
+                if node not in visited and node not in self.__spam and node != p:
+                    bid = self.__invite(t, p, node, auction, prob, val)
                     
-                    if res is not False:
-                        # case 1.1: v accepts to take part to the auction
-                        bids[seed][v] = res[0]
-                        reports[seed][v] = res[1].copy()
-                        
-                        for n in res[1]:
-                            if n in self.__invited_by_nodes.keys() or n == v:
-                                reports[seed][v].remove(n)
-                        
-                        self.__invited_by_seed[v] = seed
-                        if v not in self.__invited_by_nodes.keys():
-                            self.__invited_by_nodes[v] = {u}
-                        else:
-                            self.__invited_by_nodes[v].add(u)
-                        queue.append(v)
+                    if isinstance(bid, tuple):
+                        bids[node] = bid[0]
+                        reports[node] = bid[1].difference(self.__spam).difference(self.__S)
+                        queue.append(node)  
                     else:
-                        # case 1.2: v does not accept to take part to the auction and refuses the invitation
-                        if u in reports[seed].keys() and v in reports[seed][u]: 
-                            reports[seed][u].remove(v)    
-                
-                # case 2: v has not been visited yet and has been invited by another root
-                elif v in self.__invited_by_seed.keys() and self.__invited_by_seed[v] != seed:
-
-                    other_seed = self.__invited_by_seed[v]
-                    
-                    # if v is in the keys of reports[other_seed] or bids[other_seed], then remove it
-                    if v in reports[other_seed].keys():
-                        
-                        to_remove = [v]
-                        while len(to_remove) > 0:
-                            curr = to_remove.pop()
-                            if curr in reports[other_seed].keys():
-                                rep_to_remove = reports[other_seed][curr]
-                                for elem in rep_to_remove:
-                                    if elem in reports[other_seed].keys() and elem not in to_remove:
-                                        to_remove.append(elem)
-                                del reports[other_seed][curr]
-                                del bids[other_seed][curr]
-                                # if curr is in one of the values of reports[other_seed], then remove it
-                                v = set()
-                                for value in reports[other_seed].values():
-                                    v.update(value)
-                                if curr in v:
-                                    for key in reports[other_seed].keys():
-                                        if curr in reports[other_seed][key]:
-                                            reports[other_seed][key].remove(curr)
-                            
+                        if p in reports and node in reports[p]:
+                            reports[p].remove(node)
+        
         return reports, bids
         
     def run(self, t, prob, val):
-        
-        self.__invited_by_seed.clear()
-        self.__invited_by_nodes.clear()
         
         self.__S, auction = self.__init(t)
 
@@ -161,32 +153,49 @@ class SocNetMec:
         
         revenue = 0
         
+        # with Parallel(n_jobs=len(self.__S)) as parallel:
+        #     res = parallel(delayed(self.build_reports_and_bids)(seed, bids[seed], reports[seed], t, auction, prob, val) for seed in self.__S)
+
+        # for seed, r in zip(self.__S, res):
+        #     reports[seed].update(r[0])
+        #     bids[seed].update(r[1])
+        
         for seed in self.__S:
-            
-            r, b = self.__build_reports_and_bids(seed, bids, reports, t, auction, prob, val)
-            
-            reports.update(r)
-            bids.update(b)
-            
-        for seed in self.__S:
-            
+            reports[seed], bids[seed] = self.build_reports_and_bids(seed, bids[seed], reports[seed], t, auction, prob, val)
+
+        def build_seller_net_and_run_auction(seed):
             new_seller_net = set()
             for node in self.G[seed]:
                 if node in bids[seed].keys():
                     new_seller_net.add(node)
-            
             allocation, payment = auction["auction"](self.k, new_seller_net, reports[seed], bids[seed])
-            
-            for all, pay in zip(allocation.values(), payment.values()):
-                if all:
-                    revenue += pay
+            return allocation, payment
+                
+        allocation = {}
+        payment = {}
+        
+        # with Parallel(n_jobs=len(self.__S)) as parallel:
+        #     res = parallel(delayed(build_seller_net_and_run_auction)(seed) for seed in self.__S)
+        
+        # for a, p in res:
+        #     allocation.update(a)
+        #     payment.update(p)
+        
+        for seed in self.__S:
+            a, p = build_seller_net_and_run_auction(seed)
+            allocation.update(a)
+            payment.update(p)
+        
+        for all, pay in zip(allocation.values(), payment.values()):
+            if all:
+                revenue += pay
                     
         bids.clear()
         reports.clear()
             
         self.__learner.receive_reward(revenue)
         
-        print(f"Step: {t}, Revenue: {revenue}")
+        print(f"T: {t}, revenue: {revenue}")
             
         return revenue
         

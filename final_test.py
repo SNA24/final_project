@@ -2,15 +2,20 @@ import networkx as nx
 import random
 from lesson5 import affiliationG
 from final_mockup import SocNetMec
+import tqdm
 
 prob = dict()
 
 def input_data():
-    n = 25000
-    G = affiliationG(n, 5, 0.75, 4, 0.05, 1) 
+    n = 1000
+    # G = affiliationG(n, 5, 0.75, 4, 0.05, 1) 
+    G = nx.read_edgelist("net_2", nodetype = int)
+    print("Graph done")
+    k = 5
+    T = 5000
 
-    k = max(1, random.randint(int(n*0.001), int(n*0.005)))
-    T = random.randint(20000, 100000)
+    # k = max(1, random.randint(int(n*0.001), int(n*0.005)))
+    # T = random.randint(20000, 100000)
 
     #for the oracle val
     val = dict()
@@ -47,7 +52,7 @@ def valf(t, u):
 G, k, T, val, p = input_data()
 snm=SocNetMec(G, T, k)
 revenue = 0
-for step in range(T):
+for step in tqdm.tqdm(range(T)):
     revenue += snm.run(step, probf, valf)
         
 print(revenue)

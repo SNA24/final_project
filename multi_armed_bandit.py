@@ -20,13 +20,13 @@ class UCB_Learner:
         
         self.ranking = parallel_page_rank(G, 10)
         print("PageRank done")
-        self.communities = louvain_communities(G)
-        print("Communities done")
-        n = len(self.communities)
+        # self.communities = louvain_communities(G)
+        # print("Communities done")
+        # n = len(self.communities)
         
-        self.communities_ranking = dict()
-        for index, community in enumerate(self.communities):
-            self.communities_ranking[index] = sorted(community, key = lambda x: self.ranking[x], reverse = True)
+        # self.communities_ranking = dict()
+        # for index, community in enumerate(self.communities):
+        #     self.communities_ranking[index] = sorted(community, key = lambda x: self.ranking[x], reverse = True)
         
         self.auctions_arms = list(auctions)
         nodes = list(G.nodes())
@@ -37,10 +37,19 @@ class UCB_Learner:
 
         self.__last_played_arm = None
         
-        self.__num = {a: 0 for a in itertools.product(self.auctions_arms, range(1, n+1))}
-        self.__rew = {a: 0 for a in itertools.product(self.auctions_arms, range(1, n+1))}
+        # take the first 5 nodes of the ranking
+        highest_ranking_nodes = []
+        for i, k, v in sorted([(i, k, v) for i, (k, v) in enumerate(self.ranking.items())], key = lambda x: x[2], reverse = True):
+            highest_ranking_nodes.append(k)
+            if i == 4:
+                break
+        # highest_ranking_nodes = list(G.nodes())
+        # print(highest_ranking_nodes)
+        arms = list(itertools.product(self.auctions_arms, highest_ranking_nodes[:5]))
         
-        self.__ucb = {a: float("inf") for a in itertools.product(self.auctions_arms, range(1, n+1))}
+        self.__num = {a: 0 for a in arms} # number of times arm a has been played
+        self.__rew = {a: 0 for a in arms} # sum of the rewards obtained by playing arm a
+        self.__ucb = {a: float("inf") for a in arms}
         
     def __choose_arm(self, __ucb):
         return max(__ucb, key = __ucb.get)
@@ -51,9 +60,10 @@ class UCB_Learner:
         chosen_auction_arm, chosen_num_nodes = a_t
         self.__num[a_t] += 1
 
-        seeds = set()
-        for index, community in enumerate(self.communities):
-            seeds.update(self.communities_ranking[index][:chosen_num_nodes])
+        seeds = {chosen_num_nodes}
+        # seeds = set()
+        # for index, community in enumerate(self.communities):
+        #     seeds.update(self.communities_ranking[index][:chosen_num_nodes])
 
         return seeds, chosen_auction_arm
     
@@ -95,10 +105,10 @@ class EpsGreedy_Learner:
 
         self.__last_played_arm = None
         
-        self.__arms_set = list(itertools.product(self.auctions_arms, range(1, n+1)))
-        self.__num = {a: 0 for a in itertools.product(self.auctions_arms, range(1, n+1))}
-        self.__rew = {a: 0 for a in itertools.product(self.auctions_arms, range(1, n+1))}
-        self.__avgrew = {a: 0 for a in itertools.product(self.auctions_arms, range(1, n+1))} 
+        self.__arms_set = list(itertools.product(self.auctions_arms, range(2)))
+        self.__num = {a: 0 for a in itertools.product(self.auctions_arms, range(2))}
+        self.__rew = {a: 0 for a in itertools.product(self.auctions_arms, range(2))}
+        self.__avgrew = {a: 0 for a in itertools.product(self.auctions_arms, range(2))} 
         self.__t = 0 
     
     def play_arm(self, eps):
