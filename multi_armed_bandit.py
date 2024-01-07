@@ -16,20 +16,25 @@ from networkx.algorithms.community import louvain_communities
         
 class UCB_Learner:
 
-    def __init__(self, G, auctions, T = None):
+    def __init__(self, G, auctions, T = None, n = 4):
         
         self.ranking = parallel_page_rank(G, 10)
         print("PageRank done")
-        # self.communities = louvain_communities(G)
-        # print("Communities done")
-        # n = len(self.communities)
+        self.communities = louvain_communities(G)
+        print("Communities done")
         
-        # self.communities_ranking = dict()
-        # for index, community in enumerate(self.communities):
-        #     self.communities_ranking[index] = sorted(community, key = lambda x: self.ranking[x], reverse = True)
+        communities_ranking = []
+        for index, community in enumerate(self.communities):
+            communities_ranking.append(sorted(community, key = lambda x: self.ranking[x], reverse = True)[0])
+            if index == n-1:
+                break
         
         self.auctions_arms = list(auctions)
-        nodes = list(G.nodes())
+        print(n)
+        self.nodes_arms = []
+        for i in range(n):
+            self.nodes_arms.extend(list(itertools.combinations(communities_ranking, i+1)))
+        print(list(self.nodes_arms))
         
         self.__T = T
         if self.__T is None:
@@ -37,15 +42,7 @@ class UCB_Learner:
 
         self.__last_played_arm = None
         
-        # take the first 5 nodes of the ranking
-        highest_ranking_nodes = []
-        for i, k, v in sorted([(i, k, v) for i, (k, v) in enumerate(self.ranking.items())], key = lambda x: x[2], reverse = True):
-            highest_ranking_nodes.append(k)
-            if i == 4:
-                break
-        # highest_ranking_nodes = list(G.nodes())
-        # print(highest_ranking_nodes)
-        arms = list(itertools.product(self.auctions_arms, highest_ranking_nodes[:5]))
+        arms = list(itertools.product(self.auctions_arms, self.nodes_arms))
         
         self.__num = {a: 0 for a in arms} # number of times arm a has been played
         self.__rew = {a: 0 for a in arms} # sum of the rewards obtained by playing arm a
@@ -57,15 +54,9 @@ class UCB_Learner:
     def play_arm(self):
         a_t = self.__choose_arm(self.__ucb)
         self.__last_played_arm = a_t
-        chosen_auction_arm, chosen_num_nodes = a_t
+        chosen_auction_arm, chosen_nodes = a_t
         self.__num[a_t] += 1
-
-        seeds = {chosen_num_nodes}
-        # seeds = set()
-        # for index, community in enumerate(self.communities):
-        #     seeds.update(self.communities_ranking[index][:chosen_num_nodes])
-
-        return seeds, chosen_auction_arm
+        return set(chosen_nodes), chosen_auction_arm
     
     def receive_reward(self, reward):
         
