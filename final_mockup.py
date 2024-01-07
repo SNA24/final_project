@@ -67,10 +67,10 @@ class SocNetMec:
         auction = self.__auctions[[auction["name"] for auction in self.__auctions].index(auction)]
         # arms = random.sample(self.G.nodes(), 1)
         # auction = self.__auctions[1]
-        self.__find_reachable_nodes(arms, len(arms))
+        self.__find_reachable_nodes(arms)
         return arms, auction
     
-    def __find_reachable_nodes(self, S, j):
+    def __find_reachable_nodes(self, S):
         
         self.__spam.clear()
         
@@ -87,25 +87,22 @@ class SocNetMec:
                     queue.extendleft(set(self.G[node]).difference(visited))
             return set(visited)
         
-        # with Parallel(n_jobs=j) as parallel:
-        #     spam = parallel(delayed(bfs)(s) for s in S)
-           
-        # res = set()
-        # for s in spam:
-        #     if len(res) > 0:
-        #         res.update(s)
-        #     else:
-        #         res = res.intersection(s)
-        
-        for s in S:
-            spam = bfs(s)
-            if len(self.__spam) == 0 and len(S) > 1:
-                self.__spam.update(spam)
-            else:
-                self.__spam = spam.intersection(self.__spam)
-                
-        # self.__spam = res
-                    
+        if len(S) == 1:
+            for s in S:
+                spam = bfs(s)
+                if len(self.__spam) == 0 and len(S) > 1:
+                    self.__spam.update(spam)
+                else:
+                    self.__spam = spam.intersection(self.__spam)
+        else:
+            with Parallel(n_jobs=len(S)) as parallel:
+                spam = parallel(delayed(bfs)(s) for s in S)
+                for s in spam:
+                    if len(self.__spam) == 0 and len(S) > 1:
+                        self.__spam.update(s)
+                    else:
+                        self.__spam = s.intersection(self.__spam)
+
         if frozenset(S) not in self.__cache:
             self.__cache[frozenset(S)] = self.__spam
 
@@ -153,15 +150,15 @@ class SocNetMec:
         
         revenue = 0
         
-        # with Parallel(n_jobs=len(self.__S)) as parallel:
-        #     res = parallel(delayed(self.build_reports_and_bids)(seed, bids[seed], reports[seed], t, auction, prob, val) for seed in self.__S)
-
-        # for seed, r in zip(self.__S, res):
-        #     reports[seed].update(r[0])
-        #     bids[seed].update(r[1])
-        
-        for seed in self.__S:
-            reports[seed], bids[seed] = self.build_reports_and_bids(seed, bids[seed], reports[seed], t, auction, prob, val)
+        if len(self.__S) == 1:
+            for seed in self.__S:
+                reports[seed], bids[seed] = self.build_reports_and_bids(seed, bids[seed], reports[seed], t, auction, prob, val)
+        else:
+            with Parallel(n_jobs=len(self.__S)) as parallel:
+                res = parallel(delayed(self.build_reports_and_bids)(seed, bids[seed], reports[seed], t, auction, prob, val) for seed in self.__S)
+                for seed, r in zip(self.__S, res):
+                    reports[seed].update(r[0])
+                    bids[seed].update(r[1])
 
         def build_seller_net_and_run_auction(seed):
             new_seller_net = set()
@@ -174,17 +171,14 @@ class SocNetMec:
         allocation = {}
         payment = {}
         
-        # with Parallel(n_jobs=len(self.__S)) as parallel:
-        #     res = parallel(delayed(build_seller_net_and_run_auction)(seed) for seed in self.__S)
-        
-        # for a, p in res:
-        #     allocation.update(a)
-        #     payment.update(p)
-        
-        for seed in self.__S:
-            a, p = build_seller_net_and_run_auction(seed)
-            allocation.update(a)
-            payment.update(p)
+        if len(self.__S) == 1:
+            allocation, payment = build_seller_net_and_run_auction(self.__S.pop())
+        else:
+            with Parallel(n_jobs=len(self.__S)) as parallel:
+                res = parallel(delayed(build_seller_net_and_run_auction)(seed) for seed in self.__S)
+                for a, p in res:
+                    allocation.update(a)
+                    payment.update(p)
         
         for all, pay in zip(allocation.values(), payment.values()):
             if all:
