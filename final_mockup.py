@@ -52,9 +52,6 @@ class SocNetMec:
         self.__learner = UCB_Learner(self.G, [auction["name"] for auction in self.__auctions], self.T)
         # self.__learner = EpsGreedy_Learner(self.G, [auction["name"] for auction in self.__auctions], self.T)
         
-        # the optimal arm is the subset of nodes with the largest valuations and the auction with the highest revenue
-        # it is used to compute the regret
-        
         self.__spam = set()
         self.__cache = dict()
 
@@ -65,8 +62,6 @@ class SocNetMec:
             arms, auction = self.__learner.play_arm(give_eps(self.G, t))
         arms = set(arms)
         auction = self.__auctions[[auction["name"] for auction in self.__auctions].index(auction)]
-        # arms = random.sample(self.G.nodes(), 1)
-        # auction = self.__auctions[1]
         self.__find_reachable_nodes(arms)
         return arms, auction
     
@@ -118,10 +113,12 @@ class SocNetMec:
         else:
             return False
         
-    def build_reports_and_bids(self, seed, bids, reports, t, auction, prob, val):
+    def build_reports_and_bids(self, seed, t, auction, prob, val):
         
         visited = set()
         queue = deque([seed])
+        bids = {}
+        reports = {}
         
         while queue:
             p = queue.popleft()
@@ -152,10 +149,10 @@ class SocNetMec:
         
         if len(self.__S) == 1:
             for seed in self.__S:
-                reports[seed], bids[seed] = self.build_reports_and_bids(seed, bids[seed], reports[seed], t, auction, prob, val)
+                reports[seed], bids[seed] = self.build_reports_and_bids(seed, t, auction, prob, val)
         else:
             with Parallel(n_jobs=len(self.__S)) as parallel:
-                res = parallel(delayed(self.build_reports_and_bids)(seed, bids[seed], reports[seed], t, auction, prob, val) for seed in self.__S)
+                res = parallel(delayed(self.build_reports_and_bids)(seed, t, auction, prob, val) for seed in self.__S)
                 for seed, r in zip(self.__S, res):
                     reports[seed].update(r[0])
                     bids[seed].update(r[1])
