@@ -13,10 +13,10 @@ from social_network_algorithms.centrality_measures.shapley_closeness import para
 from social_network_algorithms.centrality_measures.shapley_degree import parallel_shapley_degree
 from social_network_algorithms.centrality_measures.shapley_threshold import parallel_shapley_threshold
 from networkx.algorithms.community import louvain_communities
-        
-class UCB_Learner:
 
-    def __init__(self, G, auctions, T = None, n = 4):
+class Learner:
+    
+    def __init__(self, G, auctions, T = None, n = 1):
         
         self.ranking = parallel_page_rank(G, 10)
         print("PageRank done")
@@ -35,24 +35,27 @@ class UCB_Learner:
         for i in range(n):
             self.nodes_arms.extend(list(itertools.combinations(communities_ranking, i+1)))
         print(list(self.nodes_arms))
+
+        self.__last_played_arm = None
+        
+        self.arms = list(itertools.product(self.auctions_arms, self.nodes_arms))
+        
+class UCB_Learner(Learner):
+
+    def __init__(self, G, auctions, T = None, n = 1):
+        
+        super().__init__(G, auctions, T, n)
         
         self.__T = T
         if self.__T is None:
             self.__t = 1 # if the horizon is not specified, we assume t = 1 and register timesteps
-
-        self.__last_played_arm = None
         
-        arms = list(itertools.product(self.auctions_arms, self.nodes_arms))
-        
-        self.__num = {a: 0 for a in arms} # number of times arm a has been played
-        self.__rew = {a: 0 for a in arms} # sum of the rewards obtained by playing arm a
-        self.__ucb = {a: float("inf") for a in arms}
-        
-    def __choose_arm(self, __ucb):
-        return max(__ucb, key = __ucb.get)
+        self.__num = {a: 0 for a in self.arms} # number of times arm a has been played
+        self.__rew = {a: 0 for a in self.arms} # sum of the rewards obtained by playing arm a
+        self.__ucb = {a: float("inf") for a in self.arms}
     
     def play_arm(self):
-        a_t = self.__choose_arm(self.__ucb)
+        a_t = max(self.__ucb, key = self.__ucb.get)
         self.__last_played_arm = a_t
         chosen_auction_arm, chosen_nodes = a_t
         self.__num[a_t] += 1
@@ -73,33 +76,16 @@ class UCB_Learner:
         print("auction: ", a_t[0], "num_nodes: ", a_t[1], "reward: ", reward)
         return a_t, reward
     
-class EpsGreedy_Learner:
+class EpsGreedy_Learner(Learner):
 
-    def __init__(self, G, auctions, T = None):
+    def __init__(self, G, auctions, T = None, n = 1):
         
-        self.ranking = parallel_page_rank(G, 10)
-        print("PageRank done")
-        self.communities = louvain_communities(G)
-        print("Communities done")
-        n = len(self.communities)
+        super().__init__(G, auctions, T, n)
         
-        self.communities_ranking = dict()
-        for index, community in enumerate(self.communities):
-            self.communities_ranking[index] = sorted(community, key = lambda x: self.ranking[x], reverse = True)
-        
-        self.auctions_arms = list(auctions)
-        nodes = list(G.nodes())
-        
-        self.__T = T
-        if self.__T is None:
-            self.__t = 1 # if the horizon is not specified, we assume t = 1 and register timesteps
-
-        self.__last_played_arm = None
-        
-        self.__arms_set = list(itertools.product(self.auctions_arms, range(2)))
-        self.__num = {a: 0 for a in itertools.product(self.auctions_arms, range(2))}
-        self.__rew = {a: 0 for a in itertools.product(self.auctions_arms, range(2))}
-        self.__avgrew = {a: 0 for a in itertools.product(self.auctions_arms, range(2))} 
+        self.__arms_set = self.arms
+        self.__num = {a: 0 for a in self.arms}
+        self.__rew = {a: 0 for a in self.arms}
+        self.__avgrew = {a: 0 for a in self.arms}
         self.__t = 0 
     
     def play_arm(self, eps):
@@ -109,14 +95,9 @@ class EpsGreedy_Learner:
         else:
             a_t = max(self.__avgrew, key=self.__avgrew.get) #We choose the arm that has the highest average revenue
         self.__last_played_arm = a_t
-        chosen_auction_arm, chosen_num_nodes = a_t
+        chosen_auction_arm, chosen_nodes = a_t
         self.__num[a_t] += 1
-
-        seeds = set()
-        for index, community in enumerate(self.communities):
-            seeds.update(self.communities_ranking[index][:chosen_num_nodes])
-
-        return seeds, chosen_auction_arm
+        return set(chosen_nodes), chosen_auction_arm
     
     def receive_reward(self, reward):
         
