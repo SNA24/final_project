@@ -18,19 +18,20 @@ class Learner:
     
     def __init__(self, G, auctions, T = None, n = 1):
         
-        self.ranking = parallel_page_rank(G, 10)
-        print("PageRank done")
-        self.communities = louvain_communities(G)
-        print("Communities done")
+        # self.ranking = parallel_page_rank(G, 10)
+        # print("PageRank done")
+        # self.communities = louvain_communities(G)
+        # print("Communities done")
         
-        communities_ranking = []
-        for index, community in enumerate(self.communities):
-            communities_ranking.append(sorted(community, key = lambda x: self.ranking[x], reverse = True)[0])
-            if index == n-1:
-                break
+        # communities_ranking = []
+        # for index, community in enumerate(self.communities):
+        #     communities_ranking.append(sorted(community, key = lambda x: self.ranking[x], reverse = True)[0])
+        #     if index == n-1:
+        #         break
+        
+        communities_ranking = [1]
         
         self.auctions_arms = list(auctions)
-        print(n)
         self.nodes_arms = []
         for i in range(n):
             self.nodes_arms.extend(list(itertools.combinations(communities_ranking, i+1)))
@@ -109,3 +110,83 @@ class EpsGreedy_Learner(Learner):
         self.__t += 1 
 
         return a_t, reward
+    
+class Exp_3_Learner(Learner):
+
+    def __init__(self, G, auctions, T = None, n = 1):
+        
+        super().__init__(G, auctions, T, n)
+        self.__arms_set = self.arms
+        self.__T = T
+        self.__gamma = 1/(3*self.__T)
+        self.__eps = math.sqrt((1-self.__gamma)*math.log(len(self.__arms_set))/(3*len(self.__arms_set)*self.__T))
+        #It saves Hedge weights, that are initially 1
+        self.__weights = {a:1 for a in self.__arms_set}
+
+    #It use the exponential function of Hedge to update the weights based on the received rewards
+    def __Hedge_update_weights(self, rewards):
+        for a in self.__arms_set:
+            self.__weights[a] = self.__weights[a]*((1-self.__eps)**(1-rewards[a]))
+
+    #Compute the Hedge distribution: each arm is chosen with a probability that is proportional to its weight
+    def __Hedge_compute_distr(self):
+        w_sum = sum(self.__weights.values())
+        prob = list()
+        for i in range(len(self.__arms_set)):
+            prob.append(self.__weights[self.__arms_set[i]]/w_sum)
+
+        return prob
+    
+    def check_p(self):
+        # p must be a value between 0 and 1
+        for i in range(len(self.p)):
+            # if p is nan, set it to 1
+            if math.isnan(self.p[i]):
+                self.p[i] = 1
+
+    def play_arm(self):
+        self.p = self.__Hedge_compute_distr()
+        r=random.random()
+        # We chose a random arm with probability gamma
+        if r <= self.__gamma:
+            a_t = random.choice(self.__arms_set)
+        else: #and an arm according the Hedge distribution otherwise
+            self.check_p()
+            a_t = random.choices(self.__arms_set, self.p)[0]
+
+        self.__last_played_arm = a_t
+        
+        chosen_auction_arm, chosen_nodes = a_t
+        return set(chosen_nodes), chosen_auction_arm
+    
+    def receive_reward(self, reward):
+        a_t = self.__last_played_arm
+        # We compute the fake rewards
+        fake_rewards = dict()
+        for i in range(len(self.__arms_set)):
+            a = self.__arms_set[i]
+            if a != a_t:
+                fake_rewards[a] = 1
+            else:
+                fake_rewards[a] = 1 - (1-reward)/self.p[i]
+        self.__Hedge_update_weights(fake_rewards)
+
+    #utily function only used in Adversarial_Bandit script for didactic purposes
+    def get_p(self):
+        return self.__Hedge_compute_distr()
+
+#COMPUTE OPTIMAL ARM
+def compute_reward(T, a, table_cost):
+    cum_reward = 0
+    for i in range(0,T):
+        cum_reward += table_cost[a][i]
+    return cum_reward
+
+def compute_opt_arm(T, arms_set, table_cost):
+    opt_reward = -float('inf')
+    for a in arms_set:
+        temp_opt_reward = compute_reward(T, a, table_cost)
+        if temp_opt_reward >= opt_reward:
+            opt_reward = temp_opt_reward
+            opt_arm = a
+    return opt_arm
