@@ -13,12 +13,15 @@ from social_network_algorithms.centrality_measures.shapley_closeness import para
 from social_network_algorithms.centrality_measures.shapley_degree import parallel_shapley_degree
 from social_network_algorithms.centrality_measures.shapley_threshold import parallel_shapley_threshold
 from networkx.algorithms.community import louvain_communities
+import os
 
 class Learner:
     
-    def __init__(self, G, auctions, T = None, n = 1):
+    def __init__(self, G, auctions, T = None, n = 2):
         
-        # self.ranking = parallel_page_rank(G, 10)
+        cpu = os.cpu_count()
+        print("CPU: ", cpu)
+        # self.ranking = parallel_page_rank(G, os.cpu_count())
         # print("PageRank done")
         # self.communities = louvain_communities(G)
         # print("Communities done")
@@ -29,7 +32,8 @@ class Learner:
         #     if index == n-1:
         #         break
         
-        communities_ranking = [1]
+        communities_ranking = [random.sample(list(G.nodes()), 1)[0] for i in range(n)]
+        self.ranking = communities_ranking
         
         self.auctions_arms = list(auctions)
         self.nodes_arms = []
@@ -41,9 +45,12 @@ class Learner:
         
         self.arms = list(itertools.product(self.auctions_arms, self.nodes_arms))
         
+    def get_ranking(self):
+        return self.ranking
+        
 class UCB_Learner(Learner):
 
-    def __init__(self, G, auctions, T = None, n = 1):
+    def __init__(self, G, auctions, T = None, n = 2):
         
         super().__init__(G, auctions, T, n)
         
@@ -74,12 +81,11 @@ class UCB_Learner(Learner):
             self.__ucb[a_t] = self.__rew[a_t] / self.__num[a_t] + math.sqrt(2 * math.log(self.__t) / self.__num[a_t])
             self.__t += 1
 
-        print("auction: ", a_t[0], "num_nodes: ", a_t[1], "reward: ", reward)
         return a_t, reward
     
 class EpsGreedy_Learner(Learner):
 
-    def __init__(self, G, auctions, T = None, n = 1):
+    def __init__(self, G, auctions, T = None, n = 2):
         
         super().__init__(G, auctions, T, n)
         
@@ -113,7 +119,7 @@ class EpsGreedy_Learner(Learner):
     
 class Exp_3_Learner(Learner):
 
-    def __init__(self, G, auctions, T = None, n = 1):
+    def __init__(self, G, auctions, T = None, n = 2):
         
         super().__init__(G, auctions, T, n)
         self.__arms_set = self.arms
@@ -157,6 +163,7 @@ class Exp_3_Learner(Learner):
         self.__last_played_arm = a_t
         
         chosen_auction_arm, chosen_nodes = a_t
+        print(chosen_auction_arm, chosen_nodes)
         return set(chosen_nodes), chosen_auction_arm
     
     def receive_reward(self, reward):
@@ -169,6 +176,10 @@ class Exp_3_Learner(Learner):
                 fake_rewards[a] = 1
             else:
                 fake_rewards[a] = 1 - (1-reward)/self.p[i]
+        # normalize the rewards between 0 and 1
+        max_reward = max(fake_rewards.values())
+        for a in fake_rewards.keys():
+            fake_rewards[a] /= max_reward
         self.__Hedge_update_weights(fake_rewards)
 
     #utily function only used in Adversarial_Bandit script for didactic purposes

@@ -6,12 +6,13 @@ from social_network_algorithms.mechanisms.MUDAN import mudan
 from social_network_algorithms.mechanisms.SNCA import snca
 from social_network_algorithms.mechanisms.VCG import vcg
 
-from multi_armed_bandit import UCB_Learner, EpsGreedy_Learner
+from multi_armed_bandit import UCB_Learner, EpsGreedy_Learner, Exp_3_Learner
 import networkx as nx
 
 import random, math
 from joblib import Parallel, delayed
 from collections import deque
+import time
 
 def give_eps(G, t):
     if t == 0:
@@ -49,57 +50,45 @@ class SocNetMec:
             
         ]
         
-        self.__learner = UCB_Learner(self.G, [auction["name"] for auction in self.__auctions], self.T)
+        # self.__learner = UCB_Learner(self.G, [auction["name"] for auction in self.__auctions], self.T)
         # self.__learner = EpsGreedy_Learner(self.G, [auction["name"] for auction in self.__auctions], self.T)
+        self.__learner = Exp_3_Learner(self.G, [auction["name"] for auction in self.__auctions], self.T)
+        
+        ranking = self.__learner.get_ranking()
+        self.cache_bfs = {n: nx.bfs_tree(self.G, n) for n in ranking}
         
         self.__spam = set()
-        self.__cache = dict()
+        
 
     def __init(self, t):
-        if type(self.__learner) == UCB_Learner: 
+        if type(self.__learner) == UCB_Learner or type(self.__learner) == Exp_3_Learner:
             arms, auction = self.__learner.play_arm()
         else:
             arms, auction = self.__learner.play_arm(give_eps(self.G, t))
         arms = set(arms)
-        auction = self.__auctions[[auction["name"] for auction in self.__auctions].index(auction)]
-        self.__find_reachable_nodes(arms)
-        return arms, auction
+        for a in self.__auctions:
+            if a["name"] == auction:
+                break
+        return arms, a
     
     def __find_reachable_nodes(self, S):
         
         self.__spam.clear()
-        
-        if frozenset(S) in self.__cache:
-            self.__spam = self.__cache[frozenset(S)]
-            return
-        
-        def bfs (start_node):
-            visited, queue = set(), deque([start_node])
-            while queue:
-                node = queue.pop()
-                if node not in visited:
-                    visited.add(node)
-                    queue.extendleft(set(self.G[node]).difference(visited))
-            return set(visited)
-        
-        if len(S) == 1:
-            for s in S:
-                spam = bfs(s)
-                if len(self.__spam) == 0 and len(S) > 1:
-                    self.__spam.update(spam)
-                else:
-                    self.__spam = spam.intersection(self.__spam)
-        else:
-            with Parallel(n_jobs=len(S)) as parallel:
-                spam = parallel(delayed(bfs)(s) for s in S)
-                for s in spam:
-                    if len(self.__spam) == 0 and len(S) > 1:
-                        self.__spam.update(s)
-                    else:
-                        self.__spam = s.intersection(self.__spam)
 
-        if frozenset(S) not in self.__cache:
-            self.__cache[frozenset(S)] = self.__spam
+        if len(S) < 2:
+            return [self.cache_bfs[list(S)[0]]]
+                    
+        trees = []
+        
+        for index, s in enumerate(list(S)):
+            tree = self.cache_bfs[s]
+            if index == 0:
+                self.__spam = set(tree.nodes())
+            else:
+                self.__spam = self.__spam.intersection(tree.nodes())
+            trees.append(tree)
+            
+        return trees
 
     def __invite(self, t, u, v, auction, prob, val):
         if prob(u, v, t):
@@ -113,49 +102,54 @@ class SocNetMec:
         else:
             return False
         
-    def build_reports_and_bids(self, seed, t, auction, prob, val):
+    def build_reports_and_bids(self, seed, t, auction, prob, val, tree):
         
-        visited = set()
-        queue = deque([seed])
         bids = {}
         reports = {}
+        refused = set()
         
-        while queue:
-            p = queue.popleft()
-            visited.add(p)
+        for edge in tree.edges():
+            u, v = edge
+            if v not in self.__S and v not in self.__spam and u != v:
+                res = self.__invite(t, u, v, auction, prob, val)
+                if type(res) == tuple:
+                    if v in refused:
+                        refused.remove(v)
+                    bid_v, S_v = res
+                    bids[v] = bid_v
+                    reports[v] = S_v.difference(self.__spam).difference(self.__S)
+                else:
+                    refused.add(v)
+                
+        for v in refused:
+            # remove v from reports values
+            for w in reports:
+                if v in reports[w]:
+                    reports[w].remove(v)
             
-            for node in self.G[p]:
-                if node not in visited and node not in self.__spam and node != p:
-                    bid = self.__invite(t, p, node, auction, prob, val)
-                    
-                    if isinstance(bid, tuple):
-                        bids[node] = bid[0]
-                        reports[node] = bid[1].difference(self.__spam).difference(self.__S)
-                        queue.append(node)  
-                    else:
-                        if p in reports and node in reports[p]:
-                            reports[p].remove(node)
-        
         return reports, bids
         
     def run(self, t, prob, val):
         
+        start = time.time()
         self.__S, auction = self.__init(t)
-
-        bids = {seed: {} for seed in self.__S}
-        reports = {seed: {} for seed in self.__S}
+        
+        bids = {s: {} for s in self.__S}
+        reports = {s: {} for s in self.__S}
         
         revenue = 0
+        trees = self.__find_reachable_nodes(self.__S)
+        end = time.time()
         
-        if len(self.__S) == 1:
-            for seed in self.__S:
-                reports[seed], bids[seed] = self.build_reports_and_bids(seed, t, auction, prob, val)
-        else:
-            with Parallel(n_jobs=len(self.__S)) as parallel:
-                res = parallel(delayed(self.build_reports_and_bids)(seed, t, auction, prob, val) for seed in self.__S)
-                for seed, r in zip(self.__S, res):
-                    reports[seed].update(r[0])
-                    bids[seed].update(r[1])
+        print("spam: ", len(self.__spam))
+        print(f"init time: {end-start}")
+        
+        if len(self.__spam) != len(self.G.nodes()):
+            start = time.time()
+            for index, seed in enumerate(self.__S):
+                reports[seed], bids[seed] = self.build_reports_and_bids(seed, t, auction, prob, val, trees[index])
+            end = time.time()
+            print(f"build reports and bids time: {end-start}")
 
         def build_seller_net_and_run_auction(seed):
             new_seller_net = set()
@@ -168,25 +162,25 @@ class SocNetMec:
         allocation = {}
         payment = {}
         
-        if len(self.__S) == 1:
-            allocation, payment = build_seller_net_and_run_auction(self.__S.pop())
-        else:
-            with Parallel(n_jobs=len(self.__S)) as parallel:
-                res = parallel(delayed(build_seller_net_and_run_auction)(seed) for seed in self.__S)
-                for a, p in res:
-                    allocation.update(a)
-                    payment.update(p)
-        
-        for all, pay in zip(allocation.values(), payment.values()):
-            if all:
-                revenue += pay
+        start = time.time()
+        for seed in self.__S:
+            
+            allocation, payment = build_seller_net_and_run_auction(seed)
+            
+            for node in allocation:
+                revenue += payment[node]
+                
+            allocation.clear()
+            payment.clear()
+                
+        end = time.time()
+        print(f"run auction time: {end-start}")
                     
         bids.clear()
         reports.clear()
             
         self.__learner.receive_reward(revenue)
-        
-        print(f"T: {t}, revenue: {revenue}")
+        print("revenue: ", revenue)
             
         return revenue
         

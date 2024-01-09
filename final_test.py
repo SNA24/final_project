@@ -7,10 +7,12 @@ import tqdm
 prob = dict()
 
 def input_data():
-    n = 1000
+    n = 5000
     # G = affiliationG(n, 5, 0.75, 4, 0.05, 1) 
+    # print(len(G.edges()))
     G = nx.read_edgelist("net_2", nodetype = int)
     print("Graph done")
+    
     k = 5
     T = 5000
 
