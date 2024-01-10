@@ -10,14 +10,7 @@ from multi_armed_bandit import UCB_Learner, EpsGreedy_Learner, Exp_3_Learner
 import networkx as nx
 
 import random, math
-from joblib import Parallel, delayed
-from collections import deque
 import time
-
-def give_eps(G, t):
-    if t == 0:
-        return 1  #for the first step we cannot make exploitation, so eps_1 = 1
-    return (len(G.nodes())*math.log(t+1)/(t+1))**(1/3)
 
 class SocNetMec:
     
@@ -50,21 +43,25 @@ class SocNetMec:
             
         ]
         
-        # self.__learner = UCB_Learner(self.G, [auction["name"] for auction in self.__auctions], self.T)
+        self.__learner = UCB_Learner(self.G, [auction["name"] for auction in self.__auctions], self.T)
         # self.__learner = EpsGreedy_Learner(self.G, [auction["name"] for auction in self.__auctions], self.T)
-        self.__learner = Exp_3_Learner(self.G, [auction["name"] for auction in self.__auctions], self.T)
+        # self.__learner = Exp_3_Learner(self.G, [auction["name"] for auction in self.__auctions], self.T)
         
         ranking = self.__learner.get_ranking()
         self.cache_bfs = {n: nx.bfs_tree(self.G, n) for n in ranking}
         
         self.__spam = set()
         
-
+    def give_eps(self, G, t):
+        if t == 0:
+            return 1  #for the first step we cannot make exploitation, so eps_1 = 1
+        return (len(G.nodes())*math.log(t+1)/(t+1))**(1/3)
+        
     def __init(self, t):
         if type(self.__learner) == UCB_Learner or type(self.__learner) == Exp_3_Learner:
             arms, auction = self.__learner.play_arm()
         else:
-            arms, auction = self.__learner.play_arm(give_eps(self.G, t))
+            arms, auction = self.__learner.play_arm(self.give_eps(self.G, t))
         arms = set(arms)
         for a in self.__auctions:
             if a["name"] == auction:
@@ -102,7 +99,7 @@ class SocNetMec:
         else:
             return False
         
-    def build_reports_and_bids(self, seed, t, auction, prob, val, tree):
+    def build_reports_and_bids(self, t, auction, prob, val, tree):
         
         bids = {}
         reports = {}
@@ -147,7 +144,7 @@ class SocNetMec:
         if len(self.__spam) != len(self.G.nodes()):
             start = time.time()
             for index, seed in enumerate(self.__S):
-                reports[seed], bids[seed] = self.build_reports_and_bids(seed, t, auction, prob, val, trees[index])
+                reports[seed], bids[seed] = self.build_reports_and_bids(t, auction, prob, val, trees[index])
             end = time.time()
             print(f"build reports and bids time: {end-start}")
 

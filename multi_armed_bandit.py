@@ -26,16 +26,16 @@ class Learner:
         self.communities = louvain_communities(G)
         print("Communities done")
         
-        communities_ranking = []
+        self.communities_ranking = []
         for index, community in enumerate(self.communities):
-            communities_ranking.append(sorted(community, key = lambda x: self.ranking[x], reverse = True)[0])
+            self.communities_ranking.append(sorted(community, key = lambda x: self.ranking[x], reverse = True)[0])
             if index == n-1:
                 break
         
         self.auctions_arms = list(auctions)
         self.nodes_arms = []
         for i in range(n):
-            self.nodes_arms.extend(list(itertools.combinations(communities_ranking, i+1)))
+            self.nodes_arms.extend(list(itertools.combinations(self.communities_ranking, i+1)))
         print(list(self.nodes_arms))
 
         self.__last_played_arm = None
@@ -43,7 +43,8 @@ class Learner:
         self.arms = list(itertools.product(self.auctions_arms, self.nodes_arms))
         
     def get_ranking(self):
-        return self.ranking
+        print(self.communities_ranking)
+        return self.communities_ranking
         
 class UCB_Learner(Learner):
 
@@ -117,20 +118,26 @@ class EpsGreedy_Learner(Learner):
     
 class Exp_3_Learner(Learner):
 
-    def __init__(self, G, auctions, T = None, n = 2):
+    def __init__(self, G, auctions, T = None, n = 4):
         
         super().__init__(G, auctions, T, n)
-        self.__arms_set = self.arms
         self.__T = T
-        self.__gamma = 1/(3*self.__T)
-        self.__eps = math.sqrt((1-self.__gamma)*math.log(len(self.__arms_set))/(3*len(self.__arms_set)*self.__T))
+        self.__t = 1
+        
+        self.__num = {a: 0 for a in self.arms} # number of times arm a has been played
+        self.__rew = {a: 0 for a in self.arms} # sum of the rewards obtained by playing arm a
+        self.__ucb = {a: 0 for a in self.arms}
+        
+        self.__last_played_arm = None   
+        
+        self.__arms_set = self.arms
         #It saves Hedge weights, that are initially 1
         self.__weights = {a:1 for a in self.__arms_set}
 
     #It use the exponential function of Hedge to update the weights based on the received rewards
-    def __Hedge_update_weights(self, rewards):
+    def __Hedge_update_weights(self, rewards, t):
         for a in self.__arms_set:
-            self.__weights[a] = self.__weights[a]*((1-self.__eps)**(1-rewards[a]))
+            self.__weights[a] = self.__weights[a]*((1-self.__eps(t))**(1-rewards[a]))
 
     #Compute the Hedge distribution: each arm is chosen with a probability that is proportional to its weight
     def __Hedge_compute_distr(self):
@@ -141,6 +148,16 @@ class Exp_3_Learner(Learner):
 
         return prob
     
+    def __gamma(self, t):
+        time = (self.__T - self.__t) / self.__T
+        ucb = 1- (self.__ucb[self.__last_played_arm] / max(self.__ucb.values())) if self.__last_played_arm is not None else 1
+        return 1/(3*t) * time * ucb
+    
+    def __eps(self, t):
+        time = (self.__T - self.__t) / self.__T
+        ucb = 1 - (self.__ucb[self.__last_played_arm] / max(self.__ucb.values())) if self.__last_played_arm is not None else 1
+        return math.sqrt((1-self.__gamma(t))*math.log(len(self.__arms_set))/(3*len(self.__arms_set)*t)) * time * ucb    
+        
     def check_p(self):
         # p must be a value between 0 and 1
         for i in range(len(self.p)):
@@ -151,12 +168,22 @@ class Exp_3_Learner(Learner):
     def play_arm(self):
         self.p = self.__Hedge_compute_distr()
         r=random.random()
+        self.__t += 1
+        
         # We chose a random arm with probability gamma
-        if r <= self.__gamma:
+        if r <= self.__gamma(self.__t):
+            print("random")
             a_t = random.choice(self.__arms_set)
         else: #and an arm according the Hedge distribution otherwise
             self.check_p()
-            a_t = random.choices(self.__arms_set, self.p)[0]
+            if sum(self.p) == 0:
+                # take the arm with the highest UCB
+                a_t = max(self.__ucb, key=self.__ucb.get)
+            else:
+                a_t = random.choices(self.__arms_set, self.p)[0]
+            
+        # UCB
+        self.__num[a_t] += 1
 
         self.__last_played_arm = a_t
         
@@ -165,6 +192,11 @@ class Exp_3_Learner(Learner):
     
     def receive_reward(self, reward):
         a_t = self.__last_played_arm
+        
+        # UCB
+        self.__rew[a_t] += reward
+        self.__ucb[a_t] = self.__rew[a_t] / self.__num[a_t] + math.sqrt(2 * math.log(self.__t) / self.__num[a_t])
+
         # We compute the fake rewards
         fake_rewards = dict()
         for i in range(len(self.__arms_set)):
@@ -172,16 +204,16 @@ class Exp_3_Learner(Learner):
             if a != a_t:
                 fake_rewards[a] = 1
             else:
-                fake_rewards[a] = 1 - (1-reward)/self.p[i]
+                if self.p[i] == 0:
+                    fake_rewards[a] = 0
+                else:
+                    fake_rewards[a] = 1 - (1-reward)/self.p[i]
+                    
         # normalize the rewards between 0 and 1
         max_reward = max(fake_rewards.values())
         for a in fake_rewards.keys():
             fake_rewards[a] /= max_reward
-        self.__Hedge_update_weights(fake_rewards)
-
-    #utily function only used in Adversarial_Bandit script for didactic purposes
-    def get_p(self):
-        return self.__Hedge_compute_distr()
+        self.__Hedge_update_weights(fake_rewards, self.__t)
 
 #COMPUTE OPTIMAL ARM
 def compute_reward(T, a, table_cost):
