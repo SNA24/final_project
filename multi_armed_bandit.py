@@ -21,19 +21,16 @@ class Learner:
         
         cpu = os.cpu_count()
         print("CPU: ", cpu)
-        # self.ranking = parallel_page_rank(G, os.cpu_count())
-        # print("PageRank done")
-        # self.communities = louvain_communities(G)
-        # print("Communities done")
+        self.ranking = parallel_page_rank(G, os.cpu_count())
+        print("PageRank done")
+        self.communities = louvain_communities(G)
+        print("Communities done")
         
-        # communities_ranking = []
-        # for index, community in enumerate(self.communities):
-        #     communities_ranking.append(sorted(community, key = lambda x: self.ranking[x], reverse = True)[0])
-        #     if index == n-1:
-        #         break
-        
-        communities_ranking = [random.sample(list(G.nodes()), 1)[0] for i in range(n)]
-        self.ranking = communities_ranking
+        communities_ranking = []
+        for index, community in enumerate(self.communities):
+            communities_ranking.append(sorted(community, key = lambda x: self.ranking[x], reverse = True)[0])
+            if index == n-1:
+                break
         
         self.auctions_arms = list(auctions)
         self.nodes_arms = []
@@ -67,6 +64,7 @@ class UCB_Learner(Learner):
         self.__last_played_arm = a_t
         chosen_auction_arm, chosen_nodes = a_t
         self.__num[a_t] += 1
+        print(chosen_auction_arm, chosen_nodes)
         return set(chosen_nodes), chosen_auction_arm
     
     def receive_reward(self, reward):
@@ -163,7 +161,6 @@ class Exp_3_Learner(Learner):
         self.__last_played_arm = a_t
         
         chosen_auction_arm, chosen_nodes = a_t
-        print(chosen_auction_arm, chosen_nodes)
         return set(chosen_nodes), chosen_auction_arm
     
     def receive_reward(self, reward):
