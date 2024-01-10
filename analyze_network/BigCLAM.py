@@ -6,7 +6,13 @@ import numpy as np
 import math
 from lesson5 import affiliationG 
 
+# Implementation of the BigCLAM algorithm described in the
+# "Community-Affiliation Graph Model for Overlapping Network 
+# Community Detection" paper by Stanford University,
+# also some videos by Stanford University were used as reference
+
 def log_likelihood(u, F, G, sum_v, i):
+    """Computes the log-likelihood of the node u in the graph G with respect to the affiliation matrix F."""
     
     sum_1 = np.zeros(i)
     for v in G.neighbors(u):
@@ -19,6 +25,7 @@ def log_likelihood(u, F, G, sum_v, i):
     return sum_1 - sum_2
 
 def coordinate_gradient_ascent(log_likelihood, F, G, sum_v, learning_rate, max_iter):
+    """Computes the coordinate gradient ascent algorithm for the log-likelihood function."""
     
     n, m = F.shape
 
@@ -44,6 +51,7 @@ def coordinate_gradient_ascent(log_likelihood, F, G, sum_v, learning_rate, max_i
     return F
 
 def compute_c(G, m):
+    """Computes the number of communities c and the affiliation matrix F."""
     
     n = len(G.nodes())
     learning_rate = 0.0001
@@ -71,6 +79,7 @@ def compute_c(G, m):
     return math.ceil(mean_length), affiliations, communities
 
 def compute_p(G, affiliations, communities):
+    """Computes the probability p of a node to have an edge towards a community."""
 
     num_strong_ties_per_node = [degree-1 for _, degree in G.degree()]
     
@@ -98,6 +107,7 @@ def compute_p(G, affiliations, communities):
     return mean_p
 
 def compute_degree_distance(G1, G2):
+    """Computes the degree distance between two graphs G1 and G2."""
 
     degree_distribution_G1 = [d for _, d in G1.degree()]
     degree_distribution_G2 = [d for _, d in G2.degree()]

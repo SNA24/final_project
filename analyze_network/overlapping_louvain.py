@@ -1,6 +1,12 @@
 import networkx as nx
 from lesson5 import affiliationG
 
+# Implementation of the Overlapping Louvain algorithm described in the
+# "A Fast Algorithm for Overlapping Community Detection" paper by Elyasi, 
+# Meybodi, Rezvanian, Haeri
+
+# step 3 has been modified by us to find similar communities and merge them
+
 def operlapping_louvain(G, n_iter = 2, lambda_ = 0, threshold = 0.5):
     
     # STEP 1. execute the louvain algorithm n_iter times and record the results

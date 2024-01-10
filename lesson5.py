@@ -63,6 +63,7 @@ def configurationG(deg):
                     done = True
 
     return G
+
 #Most of the properties depends on the degree distribution: fraction p_k of vertices with degree k
 #Usually, clustering coefficient is low. However, it becomes larger when the degree distribution is a power law
 #Usually, configuration graph have a giant component.
@@ -130,12 +131,6 @@ def preferentialG(n,p):
             nodes.append(v)
 
     return G
-
-def multiPreferentialG(n,p,k):
-    pass
-
-def degreePreferentialG(n,p):
-    pass
 
 # Generalized Watts-Strogatz (EK 20)
 # n is the number of nodes (we assume n is a perfect square or it will be rounded to the closest perfect square)

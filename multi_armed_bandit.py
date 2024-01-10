@@ -19,10 +19,26 @@ class Learner:
     
     def __init__(self, G, auctions, T = None, n = 2):
         
-        cpu = os.cpu_count()
+        cpu = os.cpu_count() # take the number of available corse to parallelize page rank
         print("CPU: ", cpu)
+        
+        # we chose to use page rank since it is quite efficient on this network in the parallel version (it takes about 30 mins on 9 cores)
+        
+        # we could have used voterank to (which gave better results on the average) but it does not terminate
+        # in a reasonable amount of time on this network, voterank had better performances also not considering communities on smaller graphs where
+        # it was able to terminate
+        
+        # in addition page rank ranks the nodes according to their importance and the importance of the nodes which link to them, 
+        # so, at least in theory, this could allow us to reach all the nodes in a community
+        
+        print("Starting PageRank...")
         self.ranking = parallel_page_rank(G, os.cpu_count())
         print("PageRank done")
+        
+        # we combine the centrality measure with community detection to find the best node to inform all the others of its community
+        # since the networks is an affiliation netowrk, we use the louvain algorithm to find the communities (it takes from 5 to 15 mins)
+        
+        print("Starting community detection...")
         self.communities = louvain_communities(G)
         print("Communities done")
         
@@ -34,15 +50,24 @@ class Learner:
         
         self.auctions_arms = list(auctions)
         self.nodes_arms = []
+        
+        # the arms are given by the combination of all the possible combinations of auctions and combinations of nodes
+        # so the learner is able to choose the best auction and the best set of nodes to inform
+        
         for i in range(n):
             self.nodes_arms.extend(list(itertools.combinations(self.communities_ranking, i+1)))
-        print(list(self.nodes_arms))
+            
+        # what happens in practice is that just a seed is chosen, since the network is a connected component and with more seeds
+        # even if they belong to different communities, there are a lot of elements in spam
+            
+        print("Possible seeds combinations:", list(self.nodes_arms))
 
         self.__last_played_arm = None
         
         self.arms = list(itertools.product(self.auctions_arms, self.nodes_arms))
         
     def get_ranking(self):
+        """Method used to get the ranking of the nodes according to the centrality measure used by the learner"""
         print(self.communities_ranking)
         return self.communities_ranking
         
@@ -172,7 +197,6 @@ class Exp_3_Learner(Learner):
         
         # We chose a random arm with probability gamma
         if r <= self.__gamma(self.__t):
-            print("random")
             a_t = random.choice(self.__arms_set)
         else: #and an arm according the Hedge distribution otherwise
             self.check_p()
